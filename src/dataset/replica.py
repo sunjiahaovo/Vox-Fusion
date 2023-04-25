@@ -44,6 +44,21 @@ class DataLoader(Dataset):
             depth[depth > self.max_depth] = 0
         return depth
 
+    # add noise in depth
+    def add_depth_noise(self, depth):
+        # means = 0.1125 * (depth_imgs[i]* far)**2 + 4.8875
+        # std = 2.925 * (depth_imgs[i]* far)**2 + 3.325
+        # bias = torch.normal(mean = means,std = std) / far / 1000
+        # bias = bias.to(device)
+        # depth_imgs[i] = depth_imgs[i] + bias
+        means = 0.1125 * (depth * self.max_depth)**2 + 4.8875
+        std = 2.925 * (depth * self.max_depth)**2 + 3.325
+        bias = np.random.normal(means, std) / self.max_depth / 1000
+        # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        # bias = bias.to(device)
+        depth = depth + bias
+        return depth
+
     def load_image(self, index):
         rgb = cv2.imread(
             osp.join(self.data_path, 'results/frame{:06d}.jpg'.format(index)), -1)
@@ -56,6 +71,7 @@ class DataLoader(Dataset):
     def __getitem__(self, index):
         img = torch.from_numpy(self.load_image(index)).float()
         depth = self.load_depth(index)
+        depth = self.add_depth_noise(depth)
         depth = None if depth is None else torch.from_numpy(depth).float()
         pose = self.gt_pose[index] if self.use_gt else None
         return index, img, depth, self.K, pose
@@ -63,11 +79,14 @@ class DataLoader(Dataset):
 
 if __name__ == '__main__':
     import sys
-    loader = DataLoader(sys.argv[1])
+    # loader = DataLoader(sys.argv[1])
+    loader = DataLoader("/remote-home/ums_sunjiahao/datasets/Replica/room0")    # load replica room0
     for data in loader:
         index, img, depth, K, _ = data
         print(K)
         print(index, img.shape)
+        print(depth.numpy())
+        print(depth.shape)
         cv2.imshow('img', img.numpy())
         cv2.imshow('depth', depth.numpy())
         cv2.waitKey(1)
